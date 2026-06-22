@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('scripts/catalogo.py', encoding='utf-8'\\).read\\(\\)\\)\")"
+    ]
+  }
+}

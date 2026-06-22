@@ -92,7 +92,7 @@ SECOES = {
     "Tipologia": {"div": "Argumentologia", "ordem": 5, "enum": "vertical_numerada"},
     "Terapeuticologia": {"div": "Argumentologia", "ordem": 6, "enum": "horizontal"},
     "Tabelologia": {"div": "Argumentologia", "ordem": 7, "enum": "vertical_numerada"},
-    "Remissiologia": {"div": "Acabativa", "ordem": 1, "min": 7, "max": 10, "enum": "vertical_numerada", "totais": {7, 10, 12, 15}},
+    "Remissiologia": {"div": "Acabativa", "ordem": 1, "max": 10, "enum": "vertical_numerada", "totais": {7, 10, 12, 15}},
     "Questionologia": {"div": "Acabativa", "ordem": 3},
     "Filmografia Especifica": {"div": "Acabativa", "ordem": 4},
     "Bibliografia Especifica": {"div": "Acabativa", "ordem": 5, "max": 10, "enum": "vertical_numerada"},

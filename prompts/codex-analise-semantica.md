@@ -22,9 +22,9 @@ Não recalcule nem reaudite:
 - totais permitidos da Remissiologia;
 - correlações string-matcháveis entre título, Neologia, Exemplologia, Remissiologia, Especialidade e Interdisciplinologia;
 - parasitas da linguagem já listados;
-- aspas pareadas, Megapensene trivocabular, limite/ordem de Ortopensatologia, estrutura mínima de Bibliografia e espelhamento quantitativo Masculinologia/Femininologia;
+- aspas pareadas, Megapensene trivocabular, limite/ordem de Ortopensatologia, fichamento formal de Bibliografia Específica (autor/Idem, ano, paginação, abreviação de edição, capitalização pós dois-pontos) e ficha técnica formal de Filmografia Específica (27 campos, mínimo de atores, fonte 8);
 - negrito, itálico, versalete, fontes, pontuação DOCX e highlights formais, exceto quando a análise semântica precisar identificar estrangeirismos ou expressões estrangeiras que devem receber itálico.
-- Enumerologia com exatamente 7 itens, sinais gráficos formais dos sublinhamentos, artigos formais da Exemplologia e espaçamento/total formal da Remissiologia.
+- Enumerologia com exatamente 7 itens, barra formal dos sublinhamentos, artigos formais da Exemplologia e espaçamento/total formal da Remissiologia.
 
 Quando precisar mencionar esses pontos, use os valores do JSON formal como fonte.
 
@@ -50,7 +50,9 @@ Avalie apenas o que exige interpretação:
 16. pesquisa exaustiva como checklist editorial: Holociclo, Holoserver, Holoteca e Internet;
 17. critérios qualificadores completos: clareza, coerência, concisão, contribuição, cosmovisão, detalhismo, estilística, estrutura, exaustividade, harmonia, lógica, originalidade, relevância, tares e usabilidade;
 18. concordância, regência, clareza e cacófatos não detectáveis automaticamente;
-19. oportunidades de qualificação editorial.
+19. oportunidades de qualificação editorial;
+20. uso de travessão/en dash ou hífen sem espaços (em vez de hífen com espaços) nos sublinhamentos formais quando os elementos conectados são expressões compostas — exige julgamento semântico do que conta como expressão composta, por isso não é verificado pelo Python;
+21. vínculo entre o título do verbete (quando neologismo), a Neologia e a Exemplologia — se o título é neologismo, ele deve estruturar a Neologia e ser coerente com os exemplos apresentados.
 
 ## Saída
 

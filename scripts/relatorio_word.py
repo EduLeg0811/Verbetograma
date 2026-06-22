@@ -17,6 +17,19 @@ def markdown_to_report_docx(markdown: str) -> bytes:
         text = text.replace("<br>", "\n")
         return text.strip()
 
+    def add_runs(paragraph, text: str) -> None:
+        text = text.replace("<br>", "\n")
+        for part in re.split(r"(\*\*.*?\*\*|`[^`]+`)", text):
+            if not part:
+                continue
+            if part.startswith("**") and part.endswith("**"):
+                paragraph.add_run(part[2:-2]).bold = True
+            elif part.startswith("`") and part.endswith("`"):
+                run = paragraph.add_run(part[1:-1])
+                run.font.name = "Consolas"
+            else:
+                paragraph.add_run(part)
+
     def table_row(line: str) -> list[str]:
         return [strip_md(cell) for cell in line.strip().strip("|").split("|")]
 
@@ -64,10 +77,10 @@ def markdown_to_report_docx(markdown: str) -> bytes:
             doc.add_paragraph(strip_md(bullet.group(1)), style="List Bullet")
         else:
             paragraph = doc.add_paragraph()
-            for idx, part in enumerate(strip_md(line).split("\n")):
+            for idx, segment in enumerate(line.split("<br>")):
                 if idx:
                     paragraph.add_run().add_break(WD_BREAK.LINE)
-                paragraph.add_run(part)
+                add_runs(paragraph, segment)
         i += 1
 
     output = BytesIO()

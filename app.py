@@ -1,24 +1,19 @@
 from __future__ import annotations
 
 from html import escape
-import json
 import tempfile
 from pathlib import Path
 
 import streamlit as st
 
-from scripts.analisar_verbete import analyze_file, clean, detect_division, detect_independent_epigraph, detect_section, read_docx_rich, render_markdown
+from scripts.analisar_verbete import analyze_file, clean, convert_doc_to_docx, detect_division, detect_independent_epigraph, detect_section, read_docx_rich, render_markdown
 from scripts.editar_verbete import gerar_pdf_marcado, gerar_verbete_corrigido, gerar_verbete_marcado
 from scripts.relatorio_word import markdown_to_report_docx
-
-ROOT = Path(__file__).parent
-REFERENCES = ROOT / "references"
 
 st.set_page_config(
     page_title="Revisor Verbetográfico",
     page_icon="",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
 st.markdown(
@@ -36,7 +31,7 @@ st.markdown(
       --danger: #a54845;
     }
     .stApp { background: var(--bg); color: var(--ink); }
-    [data-testid="stSidebar"] { background: #eee7dc; border-right: 1px solid var(--line); }
+    [data-testid="stSidebar"] { display: none; }
     .block-container { padding-top: 2.2rem; max-width: 1280px; }
     h1, h2, h3 { letter-spacing: 0; color: var(--ink); }
     h1 { font-size: 2.1rem !important; line-height: 1.1 !important; margin-bottom: .35rem !important; }
@@ -109,33 +104,6 @@ st.markdown(
       background: #315d53;
       color: white;
     }
-    .json-download-panel {
-      border-top: 1px solid #d4c8b8;
-      margin-top: 18px;
-      padding-top: 14px;
-    }
-    .sidebar-title {
-      display: block;
-      margin: 1.35rem 0 .25rem 0;
-      padding: 0;
-      color: #23211f;
-      font-size: 1.22rem;
-      line-height: 1.45;
-      font-weight: 750;
-      letter-spacing: 0;
-      white-space: normal;
-      overflow: visible;
-    }
-    [data-testid="stSidebar"] .stDownloadButton:last-of-type > button,
-    [data-testid="stSidebar"] .stDownloadButton:last-of-type button {
-      background: #6f5b40;
-      border-color: #5b4933;
-    }
-    [data-testid="stSidebar"] .stDownloadButton:last-of-type > button:hover,
-    [data-testid="stSidebar"] .stDownloadButton:last-of-type button:hover {
-      background: #5b4933;
-      border-color: #493a29;
-    }
     div[data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     code, pre { background: #f0ebe3 !important; border-radius: 6px; }
     div[data-testid="stMarkdownContainer"] table {
@@ -177,10 +145,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-def read_reference(name: str) -> str:
-    return (REFERENCES / name).read_text(encoding="utf-8")
 
 
 def status_class(value: bool | None) -> str:
@@ -290,15 +254,6 @@ def evidence_html(text: str, rich_evidence: dict[str, str]) -> str:
             return html
     return escape(text)
 
-with st.sidebar:
-    st.markdown('<span class="sidebar-title">Revisor Verbetográfico</span>', unsafe_allow_html=True)
-    st.divider()
-    st.markdown("#### Referências")
-    ref_files = sorted(p.name for p in REFERENCES.glob("*.md"))
-    selected_ref = st.selectbox("Abrir referência", ref_files, index=ref_files.index("estrutura-canonica.md") if "estrutura-canonica.md" in ref_files else 0)
-    with st.expander("Ler referência selecionada"):
-        st.markdown(read_reference(selected_ref))
-
 st.markdown(
     """
     <div class="main-title-shell">
@@ -326,6 +281,15 @@ if uploaded:
         tmp.write(uploaded.getbuffer())
         tmp_path = Path(tmp.name)
 
+    docx_path = None
+    conversion_warning = None
+    if suffix.lower() == ".doc":
+        docx_path = convert_doc_to_docx(tmp_path)
+        if not docx_path:
+            conversion_warning = "Não foi possível converter o DOC para DOCX neste ambiente (instale o LibreOffice ou o Microsoft Word). A análise seguirá apenas com texto, sem formatação."
+    elif suffix.lower() == ".docx":
+        docx_path = tmp_path
+
     try:
         result = analyze_file(tmp_path)
         rich_sections = {}
@@ -333,14 +297,19 @@ if uploaded:
         marked_docx = None
         corrected_docx = None
         marked_pdf = None
-        if suffix.lower() == ".docx":
-            rich_sections, rich_evidence = build_rich_docx_views(tmp_path)
-            marked_docx = gerar_verbete_marcado(tmp_path, result)
-            corrected_docx = gerar_verbete_corrigido(tmp_path, result)
+        if docx_path is not None:
+            rich_sections, rich_evidence = build_rich_docx_views(docx_path)
+            marked_docx = gerar_verbete_marcado(docx_path, result)
+            corrected_docx = gerar_verbete_corrigido(docx_path, result)
         elif suffix.lower() == ".pdf":
             marked_pdf = gerar_pdf_marcado(tmp_path, result)
     finally:
         tmp_path.unlink(missing_ok=True)
+        if docx_path is not None and docx_path != tmp_path:
+            docx_path.unlink(missing_ok=True)
+
+    if conversion_warning:
+        st.warning(conversion_warning)
 
     report_md = render_markdown(result)
     report_docx = markdown_to_report_docx(report_md)
@@ -350,17 +319,17 @@ if uploaded:
     marca = result["marca_excelencia"]
     base_name = Path(uploaded.name).stem
 
-    with st.sidebar:
-        st.divider()
-        st.markdown("#### Downloads")
-        st.download_button(
-            "Baixar relatório Word",
-            report_docx,
-            file_name="relatorio-conformidade.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True,
-        )
-        if marked_docx and corrected_docx:
+    if marked_docx and corrected_docx:
+        download_cols = st.columns(3)
+        with download_cols[0]:
+            st.download_button(
+                "Baixar relatório Word",
+                report_docx,
+                file_name="relatorio-conformidade.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
+        with download_cols[1]:
             st.download_button(
                 "Baixar verbete marcado",
                 marked_docx,
@@ -368,6 +337,7 @@ if uploaded:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
             )
+        with download_cols[2]:
             st.download_button(
                 "Baixar verbete corrigido",
                 corrected_docx,
@@ -375,7 +345,17 @@ if uploaded:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
             )
-        elif marked_pdf:
+    elif marked_pdf:
+        download_cols = st.columns(2)
+        with download_cols[0]:
+            st.download_button(
+                "Baixar relatório Word",
+                report_docx,
+                file_name="relatorio-conformidade.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
+        with download_cols[1]:
             st.download_button(
                 "Baixar verbete marcado",
                 marked_pdf,
@@ -383,19 +363,15 @@ if uploaded:
                 mime="application/pdf",
                 use_container_width=True,
             )
-            st.caption("Correção automática final disponível apenas para DOCX.")
-        else:
-            st.caption("Verbete marcado/corrigido disponível para DOCX. PDF marcado depende de busca textual.")
-        st.markdown('<div class="json-download-panel"></div>', unsafe_allow_html=True)
-        st.markdown("#### Dados técnicos")
+        st.caption("Correção automática final disponível apenas para DOCX.")
+    else:
         st.download_button(
-            "Baixar JSON",
-            json.dumps(result, ensure_ascii=False, indent=2),
-            file_name="analise-verbetografica.json",
-            mime="application/json",
-            use_container_width=True,
-            type="secondary",
+            "Baixar relatório Word",
+            report_docx,
+            file_name="relatorio-conformidade.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
+        st.caption("Verbete marcado/corrigido disponível para DOCX. PDF marcado depende de busca textual.")
 
     st.markdown(
         f"""

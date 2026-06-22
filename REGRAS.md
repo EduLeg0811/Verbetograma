@@ -70,7 +70,6 @@ Estas regras são verificadas de modo determinístico pelo app/CLI.
 | Antonimologia | 2 acepções |
 | Neologia | 2 itens |
 | Exemplologia | 2 itens |
-| Remissiologia | 7 itens |
 
 ### Limiares de máximos verificados
 
@@ -105,8 +104,7 @@ Estas regras são verificadas de modo determinístico pelo app/CLI.
 
 | Regra | Como o código verifica | Severidade |
 |---|---|---|
-| Total permitido | A quantidade de itens deve ser 7, 10, 12 ou 15 | Crítico |
-| Mínimo geral | A seção deve ter ao menos 7 itens | Importante |
+| Total permitido | A quantidade de itens deve ser exatamente 7, 10, 12 ou 15; qualquer outro total (inclusive abaixo de 7) é inválido | Crítico |
 | Máximo | A seção conta como máximo a partir de 10 itens | Painel de máximos |
 | Espaçamento duplo entre itens | Alerta quando itens verticais aparecem sem linha dupla detectável | Refinamento |
 
@@ -142,8 +140,8 @@ Termos buscados: `um`, `uma`, `uns`, `umas`, `num`, `numa`, `nuns`, `numas`, `me
 | Aspas abre-fecha | Em Etimologia, Citaciologia e Ortopensatologia, confere pares de aspas retas, curvas simples e curvas duplas | Importante |
 | Megapensene trivocabular | Em Megapensenologia, cada sentença deve ter exatamente 3 palavras e conter verbo explícito ou elipse por `:` | Importante |
 | Ortopensatologia | Confere limite de até 3 ortopensatas, ordem alfabética e fórmulas objetivas com aspas, travessão ou lista numerada | Importante |
-| Bibliografia | Em Bibliografia Específica, confere itens numerados com autor/Idem, ano e paginação | Importante |
-| Masculinologia x Femininologia | Confere quantidade equivalente de itens nas duas seções quando ambas existem | Importante |
+| Bibliografia Específica | Confere autor/Idem inicial, repetição de autor sem "Idem", ano, paginação, abreviação de edição ("Ed.") e capitalização após ":" em cada item | Importante |
+| Filmografia Específica | Confere ficha técnica com 27 campos e ao menos 5 atores listados | Importante |
 
 ### Formatação DOCX: negrito e pontuação
 
@@ -159,7 +157,7 @@ Estas regras só são verificadas quando a entrada é `.docx`.
 | Ponto final plano em prosa | Se a epígrafe usa `.` e não há `:` introdutório, o ponto final do parágrafo deve ficar sem negrito | Importante |
 | Lista vertical aberta por `:` | Se o `:` vem imediatamente após palavra em negrito, também deve estar em negrito; se encerra parágrafo introdutório em fonte normal, deve ficar normal | Importante |
 | Remissiologia com `:` normal | Excepcionalmente na Remissiologia, o `:` que abre a lista vertical deve ficar sem negrito | Importante |
-| Último item da lista vertical | O ponto final do último item deve ficar em negrito apenas quando a lista foi aberta por `:` em negrito | Importante |
+| Último item da lista vertical | O ponto final do último item deve ficar em negrito apenas quando a lista foi aberta por `:` em negrito; não verificado em Bibliografia Específica | Importante |
 
 ### Formatação DOCX: itálico
 
@@ -167,7 +165,8 @@ Estas regras só são verificadas quando a entrada é `.docx`.
 |---|---|---|
 | Título citado em itálico/sublinhado | Em Definologia e Remissiologia, procura o título do verbete no corpo da seção e confere se os caracteres alfanuméricos estão em itálico ou sublinhados | Importante |
 | Expressões compostas notáveis | Apenas nas seções formais correspondentes, confere itálico da palavra de classe até o próximo `;` ou `.`: Sinergismologia/sinergismo, Principiologia/princípio, Codigologia/código, Teoriologia/teoria, Tecnologia/técnica, Laboratoriologia/laboratório, Colegiologia/Colégio Invisível, Efeitologia/efeito, Ciclologia/ciclo, Binomiologia/binômio, Interaciologia/interação, Crescendologia/crescendo, Trinomiologia/trinômio, Polinomiologia/polinômio, Antagonismologia/antagonismo, Paradoxologia/paradoxo, Legislogia/lei, Sindromologia/síndrome e Mitologia/mito | Importante |
-| Sinais de sublinhamento | Nas seções formais, confere barra com espaços em Antagonismologia, restringe barra à Antagonismologia, alerta hífen com espaços e exige travessão quando o elemento conectado é expressão composta | Importante |
+| Sinais de sublinhamento | Nas seções formais, confere barra com espaços em Antagonismologia e restringe barra à Antagonismologia | Importante |
+| Travessão/hífen em expressão composta (manual) | "Quando houver expressão composta entre os elementos, usar travessão/en dash ou hífen sem espaços, nunca hífen com espaços" exige interpretação semântica do que conta como expressão composta; não é verificado pelo código, apenas pela LLM na revisão | — |
 | Artigo inicial sem itálico | Em listagens horizontais separadas por `;`, confere se o artigo inicial do item (`a`, `as`, `o`, `os`) está sem itálico, mesmo quando a palavra seguinte está em itálico | Importante |
 | Separador sem itálico | Confere se o caractere separador `;` não está em itálico; o espaço posterior não é considerado erro | Importante |
 | Sufixos repetidos em itálico | Quando há 7 ou mais ocorrências com sufixos `cracia`, `filia`, `fobia` ou `teca`, confere se o sufixo está em itálico | Importante |
@@ -182,6 +181,7 @@ Estas regras só são verificadas quando a entrada é `.docx` e os atributos apa
 | Título | Confere Arial 11, negrito-itálico e versalete quando os atributos estão explícitos | Importante |
 | Especialidade | Confere parênteses, Arial 11 e versalete quando os atributos estão explícitos | Importante |
 | Frase Enfática | Confere centralização, grifo interno em itálico sem negrito, 2 espaços entre palavras e 4 linhas quando detectáveis; não verifica tamanho nem formato da fonte | Importante |
+| Filmografia Específica | Confere fonte tamanho 8 na ficha técnica quando o atributo está explícito | Importante |
 | Layout DOCX | Confere papel carta, margens, medianiz, cabeçalho, paginação, texto geral, borda dupla, título e Especialidade quando os atributos aparecem explicitamente no XML | Importante |
 
 ### Downloads gerados pelo app
@@ -205,7 +205,8 @@ Estas regras têm alguma verificação automática, mas ainda dependem de heurí
 | Contagens horizontais | Conta por `;`, vírgulas em algumas seções e padrões numéricos | Pode falhar em redações atípicas ou itens compostos |
 | Layout e estilo DOCX | Lê atributos explícitos de runs e propriedades do DOCX | Não resolve herança completa de estilos do Word |
 | Ordem alfabética | Confere por chave textual normalizada | Pode exigir revisão humana em itens com artigos, siglas, nomes próprios ou subtítulos complexos |
-| Bibliografia | Confere estrutura mínima objetiva de referência | Não substitui revisão bibliográfica completa |
+| Bibliografia Específica | Confere autor/Idem, ano, paginação, abreviação de edição e capitalização pós dois-pontos por item | Heurística textual; não substitui revisão bibliográfica completa de conteúdo |
+| Filmografia Específica | Conta campos rotulados (`Campo:`) e nomes em "Atores"/"Elenco" por ficha | Depende de a ficha seguir o padrão `Rótulo: valor`; não valida o conteúdo de cada campo |
 
 ## 3. Não Implementado no Python
 
@@ -214,7 +215,6 @@ Estas regras existem nas referências, mas não são verificadas automaticamente
 - Espaçamento duplo completo da Remissiologia entre todas as palavras e pontuações quando não houver estrutura textual detectável.
 - Viúvas, quebras de linha e divisão de palavras.
 - Agrupamento interno de subtítulos em Ortopensatologia além das fórmulas objetivas.
-- Revisão bibliográfica completa além da estrutura mínima objetiva.
 - Iniciais do verbetógrafo ao final.
 
 ## 4. Reservado à LLM/Codex
@@ -234,3 +234,5 @@ Estes itens exigem juízo editorial e devem ser verificados com os prompts em `p
 - Progressão semântica da Enumerologia, Megapensenologia não justaposta, conteúdo de Arcaisticologia, Unidade e Seciologia, e fidelidade de transcrição em Ortopensatologia.
 - Derivação conceitual da Questionologia.
 - Revisão fina de concordância, regência, clareza e cacófatos.
+- Travessão/en dash ou hífen sem espaços vs. hífen com espaços em expressões compostas dos sublinhamentos formais (exige julgar o que conta como expressão composta).
+- Vínculo entre título neologismo, Neologia e Exemplologia.
