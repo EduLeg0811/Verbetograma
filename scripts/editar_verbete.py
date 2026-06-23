@@ -9,7 +9,13 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from .analisar_verbete import NS, clean
+try:
+    from .analisar_verbete import NS, clean
+except ImportError:
+    try:
+        from scripts.analisar_verbete import NS, clean
+    except ImportError:
+        from analisar_verbete import NS, clean
 
 # Registry of standard namespaces to prevent corrupt element prefixes in DOCX (like ns0:, ns1:)
 NAMESPACES_TO_REGISTER = {
@@ -132,27 +138,39 @@ def _split_run_for_char(p: ET.Element, char_idx: int) -> ET.Element | None:
             before, char, after = text[:local], text[local : local + 1], text[local + 1 :]
             pos = list(p).index(run)
             
-            orig_rpr = run.find("w:rPr", NS)
-            
-            def make_run(txt: str) -> ET.Element:
-                new_run = ET.Element(_qn("w:r"))
-                if orig_rpr is not None:
-                    new_run.append(copy.deepcopy(orig_rpr))
-                t = ET.SubElement(new_run, _qn("w:t"))
-                t.text = txt
-                if txt.startswith(" ") or txt.endswith(" "):
-                    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            def make_run(txt: str, keep_extra: bool) -> ET.Element:
+                new_run = copy.deepcopy(run)
+                texts = new_run.findall("./w:t", NS)
+                if texts:
+                    t = texts[0]
+                    t.text = txt
+                    if txt.startswith(" ") or txt.endswith(" "):
+                        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                    else:
+                        t.attrib.pop("{http://www.w3.org/XML/1998/namespace}space", None)
+                    for extra_t in texts[1:]:
+                        new_run.remove(extra_t)
+                else:
+                    t = ET.SubElement(new_run, _qn("w:t"))
+                    t.text = txt
+                    
+                if not keep_extra:
+                    for child in list(new_run):
+                        if child.tag not in {_qn("w:rPr"), _qn("w:t")}:
+                            new_run.remove(child)
                 return new_run
 
             new_runs = []
             if before:
-                new_runs.append(make_run(before))
-            
-            char_run = make_run(char)
-            new_runs.append(char_run)
-            
+                new_runs.append(make_run(before, keep_extra=True))
+                char_run = make_run(char, keep_extra=False)
+                new_runs.append(char_run)
+            else:
+                char_run = make_run(char, keep_extra=True)
+                new_runs.append(char_run)
+                
             if after:
-                new_runs.append(make_run(after))
+                new_runs.append(make_run(after, keep_extra=False))
                 
             p.remove(run)
             for offset, new_run in enumerate(new_runs):
@@ -249,6 +267,15 @@ def _edit_docx(source: Path, result: dict, mode: str) -> bytes:
 
     # Use standard double-quoted xml declaration instead of default python single-quotes version
     xml_bytes = ET.tostring(root, encoding="utf-8")
+    
+    # Restore the original <w:document ...> start tag to preserve all namespace declarations (like w15, w16se)
+    # listed in mc:Ignorable that ElementTree discards because they are not directly used in tags.
+    import re
+    orig_doc_start = re.search(rb"<\w+:document\s+[^>]*>", document_xml)
+    new_doc_start = re.search(rb"<\w+:document\s+[^>]*>", xml_bytes)
+    if orig_doc_start and new_doc_start:
+        xml_bytes = xml_bytes[:new_doc_start.start()] + orig_doc_start.group(0) + xml_bytes[new_doc_start.end():]
+
     xml_declaration = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     return _write_docx_from_tree(source, xml_declaration + xml_bytes)
 

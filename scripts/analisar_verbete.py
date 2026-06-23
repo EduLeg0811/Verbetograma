@@ -17,7 +17,10 @@ from xml.etree import ElementTree as ET
 try:
     from .catalogo import DIVISAO_ALIASES, DIVISOES, MARCA_EXCELENCIA, PARASITAS, SECOES, SECOES_FIXAS
 except ImportError:
-    from catalogo import DIVISAO_ALIASES, DIVISOES, MARCA_EXCELENCIA, PARASITAS, SECOES, SECOES_FIXAS
+    try:
+        from scripts.catalogo import DIVISAO_ALIASES, DIVISOES, MARCA_EXCELENCIA, PARASITAS, SECOES, SECOES_FIXAS
+    except ImportError:
+        from catalogo import DIVISAO_ALIASES, DIVISOES, MARCA_EXCELENCIA, PARASITAS, SECOES, SECOES_FIXAS
 
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 

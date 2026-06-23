@@ -31,6 +31,8 @@ st.markdown(
       --line: #e7dfd3;
       --accent: #406f63;
       --accent-soft: #e6f0ec;
+      --violet: #6f4c7d;
+      --violet-soft: #e6e0e6;
       --warn: #a9672b;
       --danger: #a54845;
     }
@@ -106,17 +108,28 @@ st.markdown(
       border: 1px dashed #b9aa97;
       border-radius: 8px;
     }
-    .stButton > button, .stDownloadButton > button {
+    .stButton > button[kind="primary"], .stDownloadButton > button {
       border-radius: 7px;
       border: 1px solid #315d53;
       background: var(--accent);
       color: white;
       font-weight: 650;
     }
-    .stButton > button:hover, .stDownloadButton > button:hover {
+    .stButton > button[kind="primary"]:hover, .stDownloadButton > button:hover {
       border-color: #244d45;
       background: #315d53;
       color: white;
+    }
+    .stButton > button[kind="secondary"] {
+      border-radius: 7px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .stButton > button[kind="secondary"]:hover {
+      border-color: var(--muted);
+      color: var(--ink);
     }
     div[data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     code, pre { background: #f0ebe3 !important; border-radius: 6px; }
@@ -643,7 +656,6 @@ if uploaded:
         """,
         unsafe_allow_html=True,
     )
-
     tab_report, tab_summary, tab_template = st.tabs(
         ["Relatório", "Resumo", "Template"]
     )
@@ -652,7 +664,26 @@ if uploaded:
         st.markdown(report_md)
 
     with tab_summary:
-        st.subheader("Resumo Integrado de Seções")
+        if "show_only_inconsistencies" not in st.session_state:
+            st.session_state["show_only_inconsistencies"] = False
+
+        col_title, col_btn = st.columns([2, 1])
+        with col_title:
+            st.subheader("Resumo Integrado de Seções")
+        with col_btn:
+            st.write("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+            b1, b2 = st.columns(2)
+            with b1:
+                is_active = not st.session_state["show_only_inconsistencies"]
+                if st.button("Completo", type="primary" if is_active else "secondary", key="btn_show_completo", use_container_width=True):
+                    st.session_state["show_only_inconsistencies"] = False
+                    st.rerun()
+            with b2:
+                is_active = st.session_state["show_only_inconsistencies"]
+                if st.button("Inconsistências", type="violet" if is_active else "secondary", key="btn_show_inconsistencies", use_container_width=True):
+                    st.session_state["show_only_inconsistencies"] = True
+                    st.rerun()
+
         secoes_texto = result.get("secoes_texto", {})
         contagens = result.get("contagens", {})
         achados = result.get("achados", [])
@@ -709,6 +740,9 @@ if uploaded:
                 "Logias": logias_count
             })
             
+        if st.session_state["show_only_inconsistencies"]:
+            summary_rows = [row for row in summary_rows if row["Situação"] != "✅"]
+
         render_wrap_table(
             summary_rows,
             ["Seção", "Situação", "Texto", "Regra", "Sugestão", "Itens", "Máximos", "Logias"],

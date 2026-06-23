@@ -9,7 +9,10 @@ from pathlib import Path
 try:
     from .analisar_verbete import read_docx
 except ImportError:
-    from analisar_verbete import read_docx
+    try:
+        from scripts.analisar_verbete import read_docx
+    except ImportError:
+        from analisar_verbete import read_docx
 
 
 def analisar_epigrafe_pontuacao(texto: str) -> dict:
