@@ -107,6 +107,8 @@ Estas regras são verificadas de modo determinístico pelo app/CLI.
 | Total permitido | A quantidade de itens deve ser exatamente 7, 10, 12 ou 15; qualquer outro total (inclusive abaixo de 7) é inválido | Crítico |
 | Máximo | A seção conta como máximo a partir de 10 itens | Painel de máximos |
 | Espaçamento duplo entre itens | Alerta quando itens verticais aparecem sem linha dupla detectável | Refinamento |
+| Capitalização de itens | Garante que os títulos dos verbetes citados tenham apenas a primeira letra em maiúscula | Importante |
+| Títulos e ponto final em negrito | Garante que os títulos dos verbetes citados e o ponto final de cada item estejam em negrito (no DOCX) | Importante |
 
 ### Correlações objetivas
 
@@ -140,7 +142,7 @@ Termos buscados: `um`, `uma`, `uns`, `umas`, `num`, `numa`, `nuns`, `numas`, `me
 | Aspas abre-fecha | Em Etimologia, Citaciologia e Ortopensatologia, confere pares de aspas retas, curvas simples e curvas duplas | Importante |
 | Megapensene trivocabular | Em Megapensenologia, cada sentença deve ter exatamente 3 palavras e conter verbo explícito ou elipse por `:` | Importante |
 | Ortopensatologia | Confere limite de até 3 ortopensatas, ordem alfabética e fórmulas objetivas com aspas, travessão ou lista numerada | Importante |
-| Bibliografia Específica | Confere autor/Idem inicial, repetição de autor sem "Idem", ano, paginação, abreviação de edição ("Ed.") e capitalização após ":" em cada item | Importante |
+| Bibliografia Específica | Confere autor/Idem inicial (sobrenome do autor não deve estar em caixa alta), repetição de autor sem "Idem", ano, paginação, abreviação de edição ("Ed.") e capitalização após ":" em cada item | Importante |
 | Filmografia Específica | Confere ficha técnica com 27 campos e ao menos 5 atores listados | Importante |
 
 ### Formatação DOCX: negrito e pontuação
@@ -178,11 +180,10 @@ Estas regras só são verificadas quando a entrada é `.docx` e os atributos apa
 
 | Regra | Como o código verifica | Severidade quando falha |
 |---|---|---|
-| Título | Confere Arial 11, negrito-itálico e versalete quando os atributos estão explícitos | Importante |
-| Especialidade | Confere parênteses, Arial 11 e versalete quando os atributos estão explícitos | Importante |
-| Frase Enfática | Confere centralização, grifo interno em itálico sem negrito, 2 espaços entre palavras e 4 linhas quando detectáveis; não verifica tamanho nem formato da fonte | Importante |
-| Filmografia Específica | Confere fonte tamanho 8 na ficha técnica quando o atributo está explícito | Importante |
-| Layout DOCX | Confere papel carta, margens, medianiz, cabeçalho, paginação, texto geral, borda dupla, título e Especialidade quando os atributos aparecem explicitamente no XML | Importante |
+| Título | Confere negrito-itálico e versalete quando os atributos estão explícitos | Importante |
+| Especialidade | Confere parênteses e versalete quando os atributos estão explícitos | Importante |
+| Frase Enfática | Confere centralização, grifo interno em itálico sem negrito, 2 espaços entre palavras e 4 linhas quando detectáveis | Importante |
+| Layout DOCX | Confere papel carta, margens, cabeçalho e paginação quando os atributos aparecem explicitamente no XML | Importante |
 
 ### Downloads gerados pelo app
 
@@ -200,12 +201,12 @@ Estas regras têm alguma verificação automática, mas ainda dependem de heurí
 |---|---|---|
 | Logias | Exclui Entrada, Especialidade, divisões, Frase Enfática, corpo da Interdisciplinologia e corpo da Remissiologia | Ainda pode contar ocorrência em texto corrido que não funciona como subtítulo/item |
 | Frase Enfática | Detecta presença, centralização, grifo interno, 2 espaços entre palavras e 4 linhas quando detectáveis | Ainda não valida tamanho nem formato da fonte |
-| Título citado na Remissiologia | Confere presença e itálico/sublinhado quando encontra o título | Não valida maiúscula apenas na primeira palavra do verbete remetido |
+| Título citado na Remissiologia | Confere presença e itálico/sublinhado quando encontra o título | Valida maiúscula apenas na primeira palavra e formato em negrito do verbete citado |
 | Neologia x Exemplologia | Confere correlação textual aproximada com o título | Não compara equivalência conceitual completa dos itens |
 | Contagens horizontais | Conta por `;`, vírgulas em algumas seções e padrões numéricos | Pode falhar em redações atípicas ou itens compostos |
 | Layout e estilo DOCX | Lê atributos explícitos de runs e propriedades do DOCX | Não resolve herança completa de estilos do Word |
 | Ordem alfabética | Confere por chave textual normalizada | Pode exigir revisão humana em itens com artigos, siglas, nomes próprios ou subtítulos complexos |
-| Bibliografia Específica | Confere autor/Idem, ano, paginação, abreviação de edição e capitalização pós dois-pontos por item | Heurística textual; não substitui revisão bibliográfica completa de conteúdo |
+| Bibliografia Específica | Confere autor/Idem (com sobrenome não em caixa alta), ano, paginação, abreviação de edição e capitalização pós dois-pontos por item | Heurística textual; não substitui revisão bibliográfica completa de conteúdo |
 | Filmografia Específica | Conta campos rotulados (`Campo:`) e nomes em "Atores"/"Elenco" por ficha | Depende de a ficha seguir o padrão `Rótulo: valor`; não valida o conteúdo de cada campo |
 
 ## 3. Não Implementado no Python

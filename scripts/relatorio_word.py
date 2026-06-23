@@ -34,8 +34,17 @@ def markdown_to_report_docx(markdown: str) -> bytes:
         return [strip_md(cell) for cell in line.strip().strip("|").split("|")]
 
     doc = Document()
-    doc.styles["Normal"].font.name = "Arial"
-    doc.styles["Normal"].font.size = Pt(10)
+    
+    # Configure Normal style font properties safely to prevent Word Styles corruption
+    style = doc.styles["Normal"]
+    style.font.name = "Arial"
+    style.font.size = Pt(10)
+    
+    from docx.oxml.ns import qn
+    rPr = style.element.get_or_add_rPr()
+    rFonts = rPr.get_or_add_rFonts()
+    rFonts.set(qn('w:ascii'), 'Arial')
+    rFonts.set(qn('w:hAnsi'), 'Arial')
 
     lines = markdown.splitlines()
     i = 0

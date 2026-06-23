@@ -11,7 +11,58 @@ from xml.etree import ElementTree as ET
 
 from .analisar_verbete import NS, clean
 
-ET.register_namespace("w", NS["w"])
+# Registry of standard namespaces to prevent corrupt element prefixes in DOCX (like ns0:, ns1:)
+NAMESPACES_TO_REGISTER = {
+    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    "m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+    "ve": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+    "o": "urn:schemas-microsoft-com:office:office",
+    "v": "urn:schemas-microsoft-com:vml",
+    "w10": "urn:schemas-microsoft-com:office:word",
+    "w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+    "w15": "http://schemas.microsoft.com/office/word/2012/wordml",
+    "cx": "http://schemas.microsoft.com/office/drawing/2014/chartex",
+    "cx1": "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex",
+    "cx2": "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex",
+    "cx3": "http://schemas.microsoft.com/office/drawing/2016/5/9/chartex",
+    "cx4": "http://schemas.microsoft.com/office/drawing/2016/5/10/chartex",
+    "cx5": "http://schemas.microsoft.com/office/drawing/2016/5/14/chartex",
+    "cx6": "http://schemas.microsoft.com/office/drawing/2016/5/12/chartex",
+    "cx7": "http://schemas.microsoft.com/office/drawing/2016/5/13/chartex",
+    "cx8": "http://schemas.microsoft.com/office/drawing/2016/5/15/chartex",
+    "w16cid": "http://schemas.microsoft.com/office/word/2016/wordml/cid",
+    "w16se": "http://schemas.microsoft.com/office/word/2015/wordml/symex",
+}
+
+for prefix, uri in NAMESPACES_TO_REGISTER.items():
+    ET.register_namespace(prefix, uri)
+
+# Canonical ordering of w:rPr elements inside a text run (strict order required by OpenXML schema)
+RPR_ORDER = [
+    "rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps", "strike", "dstrike",
+    "outline", "shadow", "emboss", "imprint", "noProof", "snapToGrid", "vanish", "webHidden",
+    "color", "spacing", "w", "kern", "position", "sz", "szCs", "highlight", "u",
+    "effect", "bdr", "shd", "fitText", "vertAlign", "rtl", "cs", "em", "lang",
+    "eastAsianLayout", "specVanish", "oMath", "rPrChange"
+]
+RPR_ORDER_MAP = {name: idx for idx, name in enumerate(RPR_ORDER)}
+
+
+def _local_name(tag: str) -> str:
+    if tag.startswith("{"):
+        return tag.split("}", 1)[1]
+    return tag.split(":", 1)[-1]
+
+
+def _sort_rpr_children(rpr: ET.Element) -> None:
+    children = list(rpr)
+    children.sort(key=lambda child: RPR_ORDER_MAP.get(_local_name(child.tag), 999))
+    for child in list(rpr):
+        rpr.remove(child)
+    for child in children:
+        rpr.append(child)
 
 
 def _qn(name: str) -> str:
@@ -53,6 +104,7 @@ def _set_bold(run: ET.Element) -> None:
     rpr = _ensure_rpr(run)
     if rpr.find("w:b", NS) is None:
         rpr.append(ET.Element(_qn("w:b")))
+    _sort_rpr_children(rpr)
 
 
 def _set_highlight(run: ET.Element) -> None:
@@ -62,29 +114,46 @@ def _set_highlight(run: ET.Element) -> None:
         highlight = ET.Element(_qn("w:highlight"))
         rpr.append(highlight)
     highlight.set(_qn("w:val"), "yellow")
+    _sort_rpr_children(rpr)
 
 
 def _split_run_for_char(p: ET.Element, char_idx: int) -> ET.Element | None:
     cursor = 0
     for run in list(p.findall("./w:r", NS)):
-        text = _run_text(run)
+        texts = run.findall("./w:t", NS)
+        if not texts:
+            text = ""
+        else:
+            text = "".join(t.text or "" for t in texts)
+            
         end = cursor + len(text)
         if cursor <= char_idx < end:
             local = char_idx - cursor
             before, char, after = text[:local], text[local : local + 1], text[local + 1 :]
             pos = list(p).index(run)
+            
+            orig_rpr = run.find("w:rPr", NS)
+            
+            def make_run(txt: str) -> ET.Element:
+                new_run = ET.Element(_qn("w:r"))
+                if orig_rpr is not None:
+                    new_run.append(copy.deepcopy(orig_rpr))
+                t = ET.SubElement(new_run, _qn("w:t"))
+                t.text = txt
+                if txt.startswith(" ") or txt.endswith(" "):
+                    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                return new_run
+
             new_runs = []
             if before:
-                before_run = copy.deepcopy(run)
-                _set_run_text(before_run, before)
-                new_runs.append(before_run)
-            char_run = copy.deepcopy(run)
-            _set_run_text(char_run, char)
+                new_runs.append(make_run(before))
+            
+            char_run = make_run(char)
             new_runs.append(char_run)
+            
             if after:
-                after_run = copy.deepcopy(run)
-                _set_run_text(after_run, after)
-                new_runs.append(after_run)
+                new_runs.append(make_run(after))
+                
             p.remove(run)
             for offset, new_run in enumerate(new_runs):
                 p.insert(pos + offset, new_run)
@@ -147,6 +216,17 @@ def _edit_docx(source: Path, result: dict, mode: str) -> bytes:
     source = Path(source)
     with zipfile.ZipFile(source) as zf:
         document_xml = zf.read("word/document.xml")
+
+    # Dynamically extract and register every namespace defined in the document.xml
+    try:
+        from io import BytesIO
+        context = ET.iterparse(BytesIO(document_xml), events=("start-ns",))
+        for event, elem in context:
+            prefix, uri = elem
+            ET.register_namespace(prefix, uri)
+    except Exception:
+        pass
+
     root = ET.fromstring(document_xml)
     paragraphs = [p for p in root.findall(".//w:p", NS) if _paragraph_text(p)]
 
@@ -167,7 +247,10 @@ def _edit_docx(source: Path, result: dict, mode: str) -> bytes:
             if "Dois-pontos" in item.get("regra", "") or "Ponto final" in item.get("regra", "") or "Epigrafe" in item.get("regra", ""):
                 _set_bold(run)
 
-    return _write_docx_from_tree(source, ET.tostring(root, encoding="utf-8", xml_declaration=True))
+    # Use standard double-quoted xml declaration instead of default python single-quotes version
+    xml_bytes = ET.tostring(root, encoding="utf-8")
+    xml_declaration = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    return _write_docx_from_tree(source, xml_declaration + xml_bytes)
 
 
 def gerar_verbete_marcado(source: str | Path, result: dict) -> bytes:

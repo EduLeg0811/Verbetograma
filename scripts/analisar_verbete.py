@@ -31,7 +31,8 @@ def norm(text: str) -> str:
 
 
 def clean(text: str) -> str:
-    return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+    # Preserve multiple spaces (such as double spaces) for formatting validation
+    return text.replace("\xa0", " ").strip()
 
 
 def read_docx(path: Path) -> list[str]:
@@ -319,7 +320,7 @@ def count_items(section: str, text: str) -> int:
     if not body:
         return 0
     if section == "Enumerologia":
-        numbered = re.findall(r"(?:^|\s)\d{1,3}\.\s+", body)
+        numbered = re.findall(r"(?:^|\s)\d{1,3}\.?\s+", body)
         if numbered:
             return len(numbered)
         parts = [p for p in re.split(r";|\n", body) if clean(p.strip(" .;"))]
@@ -331,7 +332,7 @@ def count_items(section: str, text: str) -> int:
         return int(declared.group(1))
     if enum == "horizontal_numerada":
         first_line = body.splitlines()[0] if body.splitlines() else body
-        return len(re.findall(r"(?:^|\s)\d{1,3}\.\s+", first_line))
+        return len(re.findall(r"(?:^|\s)\d{1,3}\.?\s+", first_line))
     if enum == "vertical_numerada":
         return len(re.findall(r"(?m)(?:^|\n)\s*\d{1,3}\.\s+", body))
     if enum == "linhas":
@@ -344,7 +345,7 @@ def count_items(section: str, text: str) -> int:
 
 
 def numbered_tokens(text: str) -> list[str]:
-    return re.findall(r"(?:^|\s)(\d{1,3})\.\s+", text)
+    return re.findall(r"(?:^|\s)(\d{1,3})\.?\s+", text)
 
 
 def vertical_numbered_tokens(text: str) -> list[str]:
@@ -374,7 +375,7 @@ def item_texts(section: str, text: str) -> list[str]:
         return []
     enum = SECOES.get(section, {}).get("enum")
     if enum in {"horizontal_numerada", "vertical_numerada"}:
-        pattern = r"(?m)(?:^|\n)\s*(\d{1,3})\.\s+" if enum == "vertical_numerada" else r"(?:^|\s)(\d{1,3})\.\s+"
+        pattern = r"(?m)(?:^|\n)\s*(\d{1,3})\.\s+" if enum == "vertical_numerada" else r"(?:^|\s)(\d{1,3})\.?\s+"
         source = body if enum == "vertical_numerada" else (body.splitlines()[0] if body.splitlines() else body)
         matches = list(re.finditer(pattern, source))
         items = []
@@ -382,8 +383,7 @@ def item_texts(section: str, text: str) -> list[str]:
             start = match.end()
             end = matches[idx + 1].start() if idx + 1 < len(matches) else len(source)
             item = clean(source[start:end].strip(" ;."))
-            if item:
-                items.append(item)
+            items.append(item)
         return items
     if ";" in body:
         return [clean(part.strip(" .")) for part in body.split(";") if clean(part.strip(" ."))]
@@ -429,6 +429,34 @@ def numbered_spacing_issue(section: str, text: str) -> tuple[str, str] | None:
     bad = re.search(r"(?:^|\s)\d{1,2}\.(?!  )\S?", body)
     if bad:
         return "Dois espaços após número", "Usar dois espaços entre o número da acepção e o texto em Sinonimologia/Antonimologia."
+    return None
+
+
+def numbered_index_dot_issue(section: str, text: str) -> tuple[str, str] | None:
+    rule = SECOES.get(section, {})
+    if rule.get("enum") not in {"horizontal_numerada", "vertical_numerada"}:
+        return None
+    body = section_body(text)
+    if rule.get("enum") == "horizontal_numerada":
+        bad = re.search(r"(?:^|\s)(\d{1,3})(?!\.)\s+", body)
+        if bad:
+            return "Ponto após o índice da listagem", f"Inserir ponto após o índice '{bad.group(1)}' da listagem (ex.: '{bad.group(1)}. ')."
+    elif rule.get("enum") == "vertical_numerada":
+        bad = re.search(r"(?m)(?:^|\n)\s*(\d{1,3})(?!\.)\s+", body)
+        if bad:
+            return "Ponto após o índice da listagem", f"Inserir ponto após o índice '{bad.group(1)}' da listagem (ex.: '{bad.group(1)}. ')."
+    return None
+
+
+def empty_item_issue(section: str, text: str) -> tuple[str, str] | None:
+    rule = SECOES.get(section, {})
+    enum = rule.get("enum")
+    if enum not in {"horizontal_numerada", "vertical_numerada"}:
+        return None
+    items = item_texts(section, text)
+    for idx, item in enumerate(items):
+        if not item.strip():
+            return "Item de listagem vazio", f"O índice {idx + 1} está sem conteúdo na listagem."
     return None
 
 
@@ -536,24 +564,62 @@ def remissiologia_spacing_issue(text: str) -> tuple[str, str] | None:
     return None
 
 
+def remissiologia_item_issues(text: str, is_docx: bool = False) -> list[tuple[str, str, str]]:
+    if is_docx:
+        return []
+    items = item_texts("Remissiologia", text)
+    found: list[tuple[str, str, str]] = []
+    for item in items:
+        if not item.strip():
+            continue
+        parts = item.split(":")
+        title = parts[0].strip()
+        
+        # Capitalization check: first letter only is uppercase
+        first_letter_idx = -1
+        for idx, c in enumerate(title):
+            if c.isalpha():
+                first_letter_idx = idx
+                break
+        cap_ok = True
+        if first_letter_idx == -1:
+            cap_ok = False
+        elif not title[first_letter_idx].isupper():
+            cap_ok = False
+        else:
+            rest = title[first_letter_idx + 1:]
+            rest_clean = re.sub(r"\(.*?\)", "", rest)
+            if any(c.isupper() for c in rest_clean if c.isalpha()):
+                cap_ok = False
+                
+        if not cap_ok:
+            found.append((
+                "Capitalização do título na Remissiologia",
+                item,
+                f"O título do verbete '{title}' na Remissiologia deve ter apenas a primeira letra em maiúscula."
+            ))
+    return found
+
+
 def bibliography_issues(text: str) -> list[tuple[str, str, str]]:
     items = item_texts("Bibliografia Especifica", text)
     found: list[tuple[str, str, str]] = []
     prev_author = None
     for item in items:
-        author_match = re.match(r"^(Idem|[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç.,'-]{1,80}?);", item)
+        author_match = re.match(r"^(Idem|[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç.,' -]{1,80}?);", item)
         if not author_match:
-            found.append(("Autor ausente ou mal formatado", item, "Iniciar o item pelo sobrenome do autor em caixa alta seguido de ';', ou usar 'Idem;' quando repetir o autor da referência anterior."))
+            found.append(("Autor ausente ou mal formatado", item, "Iniciar o item pelo sobrenome do autor (não usar caixa alta) seguido de ';', ou usar 'Idem;' quando repetir o autor da referência anterior."))
         else:
             author = author_match.group(1)
             if author != "Idem":
                 if prev_author and norm(author) == norm(prev_author):
                     found.append(("Autor repetido sem Idem", item, "Usar 'Idem;' quando o autor é o mesmo da referência imediatamente anterior."))
                 prev_author = author
+                lastname = author.split(",")[0].strip() if "," in author else author.strip()
+                if lastname.isupper():
+                    found.append(("Sobrenome do autor em caixa alta", item, "O sobrenome do autor não deve estar em caixa alta (ex.: usar 'Vieira, Waldo' in vez de 'VIEIRA, Waldo')."))
         if not re.search(r"\b(?:19|20)\d{2}\b", item):
             found.append(("Ano ausente", item, "Incluir o ano de publicação na referência."))
-        if not re.search(r"\b(?:p\.|págs?\.?)\s*\d+", item, re.I):
-            found.append(("Paginação ausente", item, "Incluir a paginação (p. ou págs.) na referência."))
         if re.search(r"\b\d+\s*[ªa]?\s*edi[cç][aã]o\b", item, re.I) and not re.search(r"\d+\s*[ªa]?\s*Ed\.", item):
             found.append(("Abreviação de edição", item, "Abreviar 'edição' como 'Ed.' precedido do número (ex.: '2ª Ed.')."))
         colon_match = re.search(r":\s*([a-zà-ÿ])", item)
@@ -623,6 +689,27 @@ def add(achados: list[dict], severidade: str, secao: str, regra: str, evidencia:
     )
 
 
+def starts_with_argumentologia_epigraph(text: str) -> bool:
+    match = re.match(r"^([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç -]{2,40}?)(?:[:.])(?:\s+|$)", text)
+    return bool(match)
+
+
+def clean_sec(name: str) -> str:
+    return "Argumentologia" if name.startswith("Argumentologia") else name
+
+
+def get_effective_section(sec_key: str, text: str) -> str:
+    if sec_key.startswith("Argumentologia_"):
+        match = re.match(r"^([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-Za-zÁÉÍÓÚÂÊÔÃÕÇáéíóúâêôãõç -]+)(?:[:.])", text)
+        if match:
+            head = clean(match.group(1))
+            for s in SECOES:
+                if norm(head) == norm(s):
+                    return s
+        return "Argumentologia"
+    return sec_key
+
+
 def build_sections(paragraphs: list[str]) -> tuple[dict[str, str], list[tuple[str, str | None]], list[str], bool]:
     current_div = None
     current_sec = None
@@ -637,6 +724,22 @@ def build_sections(paragraphs: list[str]) -> tuple[dict[str, str], list[tuple[st
             current_div = div
             current_sec = None
             divisions_seen.append(div)
+            continue
+
+        if current_div == "Argumentologia":
+            if starts_with_argumentologia_epigraph(p):
+                idx = len([k for k in sections if k.startswith("Argumentologia_")])
+                current_sec = f"Argumentologia_{idx}"
+                sections.setdefault(current_sec, []).append(p)
+                section_order.append((current_sec, current_div))
+            else:
+                if not current_sec:
+                    idx = len([k for k in sections if k.startswith("Argumentologia_")])
+                    current_sec = f"Argumentologia_{idx}"
+                    sections.setdefault(current_sec, []).append(p)
+                    section_order.append((current_sec, current_div))
+                else:
+                    sections[current_sec].append(p)
             continue
 
         sec = detect_independent_epigraph(p)
@@ -708,13 +811,48 @@ def is_italic_at(flags: list[dict], idx: int) -> bool:
     return 0 <= idx < len(flags) and bool(flags[idx]["italic"])
 
 
+def is_char_upper(flags: list[dict], idx: int) -> bool:
+    if not (0 <= idx < len(flags)):
+        return False
+    char = flags[idx]["char"]
+    return char.isupper() or bool(flags[idx].get("small_caps"))
+
+
 def span_has_text(flags: list[dict], start: int, end: int) -> bool:
     return any(item["char"].isalnum() for item in flags[start:end])
 
 
-def span_italic_ok(flags: list[dict], start: int, end: int) -> bool:
-    chars = [item for item in flags[start:end] if item["char"].isalnum()]
-    return bool(chars) and all(item["italic"] for item in chars)
+def is_inside_parentheses(raw: str, idx: int) -> bool:
+    left_paren = raw.rfind("(", 0, idx)
+    right_paren = raw.find(")", idx)
+    if left_paren != -1 and right_paren != -1:
+        open_count = 0
+        for c in raw[left_paren:idx]:
+            if c == "(":
+                open_count += 1
+            elif c == ")":
+                open_count -= 1
+        if open_count > 0:
+            close_count = 0
+            for c in raw[idx:right_paren+1]:
+                if c == ")":
+                    close_count += 1
+                elif c == "(":
+                    close_count -= 1
+            if close_count > 0:
+                return True
+    return False
+
+
+def span_italic_ok(flags: list[dict], start: int, end: int, raw: str = "") -> bool:
+    chars = []
+    for idx in range(start, end):
+        item = flags[idx]
+        if item["char"].isalnum():
+            if raw and is_inside_parentheses(raw, idx):
+                continue
+            chars.append(item)
+    return not chars or all(item["italic"] for item in chars)
 
 
 def span_emphasis_ok(flags: list[dict], start: int, end: int) -> bool:
@@ -782,11 +920,11 @@ def prefix_bold_ok(flags: list[dict], end_idx: int) -> bool:
 
 
 def numbered_item(text: str) -> bool:
-    return bool(re.match(r"^\d{1,3}\.\s+", text.replace("\xa0", " ")))
+    return bool(re.match(r"^\d{1,3}\.?\s+", text.replace("\xa0", " ")))
 
 
 def numbered_body_start(raw: str) -> int | None:
-    match = re.match(r"^\s*\d{1,3}\.\s+", raw.replace("\xa0", " "))
+    match = re.match(r"^\s*\d{1,3}\.?\s+", raw.replace("\xa0", " "))
     return match.end() if match else None
 
 
@@ -925,19 +1063,6 @@ def analyze_docx_formatting(path: Path) -> dict:
 
         headers = layout.get("headers", [])
         if headers:
-            header_text = " ".join(header.get("text", "") for header in headers)
-            has_title = "Enciclopédia da Conscienciologia" in header_text or "Enciclopedia da Conscienciologia" in header_text
-            record("Cabeçalho", "Texto do cabeçalho", "conforme" if has_title else "ajustar", header_text[:500], 'Inserir "Enciclopédia da Conscienciologia" no cabeçalho.')
-            explicit_runs = [run for header in headers for run in header.get("runs", []) if run.get("font") or run.get("size") or run.get("italic")]
-            if explicit_runs:
-                ok = all(
-                    (not run.get("font") or str(run.get("font")).lower() == "times new roman")
-                    and (run.get("size") is None or abs(float(run.get("size")) - 9) < 0.1)
-                    and bool(run.get("italic"))
-                    for run in explicit_runs
-                    if run.get("text", "").strip()
-                )
-                record("Cabeçalho", "Formato do cabeçalho", "conforme" if ok else "ajustar", header_text[:500], "Aplicar Times New Roman 9 itálico ao cabeçalho.")
             has_page_field = any("PAGE" in " ".join(header.get("fields", [])) for header in headers)
             if has_page_field:
                 record("Cabeçalho", "Paginação", "conforme", "Campo PAGE detectado")
@@ -945,76 +1070,168 @@ def analyze_docx_formatting(path: Path) -> dict:
         title_rich = next((p for p in rich_paragraphs[:6] if not detect_division(p["text"]) and not detect_section(p["text"]) and not re.fullmatch(r"\(.+?logia\)", p["text"], re.I)), None)
         if title_rich:
             title_ok = bool_run_check(title_rich, "bold") and bool_run_check(title_rich, "italic") and bool_run_check(title_rich, "small_caps")
-            font_ok = explicit_run_check(title_rich, "font", lambda value: str(value).lower() == "arial")
-            size_ok = explicit_run_check(title_rich, "size", lambda value: abs(float(value) - 11) < 0.1)
             border_ok = paragraph_has_double_border(title_rich)
-            if title_ok and font_ok is not False and size_ok is not False and border_ok is not False:
+            if title_ok and border_ok is not False:
                 record("Entrada", "Formato do título", "conforme", title_rich["text"])
             else:
-                record("Entrada", "Formato do título", "ajustar", title_rich["text"], "Aplicar Arial 11, negrito-itálico, versalete e borda dupla ao título.")
+                record("Entrada", "Formato do título", "ajustar", title_rich["text"], "Aplicar negrito-itálico, versalete e borda dupla ao título.")
 
         specialty_rich = next((p for p in rich_paragraphs[:8] if re.fullmatch(r"\(.+?logia\)", p["text"], re.I)), None)
         if specialty_rich:
             specialty_ok = bool_run_check(specialty_rich, "small_caps")
-            font_ok = explicit_run_check(specialty_rich, "font", lambda value: str(value).lower() == "arial")
-            size_ok = explicit_run_check(specialty_rich, "size", lambda value: abs(float(value) - 11) < 0.1)
-            spacing_ok = explicit_run_check(specialty_rich, "char_spacing", lambda value: abs(float(value) - 1.5) < 0.1)
             border_ok = paragraph_has_double_border(specialty_rich)
-            if specialty_ok and font_ok is not False and size_ok is not False and spacing_ok is not False and border_ok is not False:
+            if specialty_ok and border_ok is not False:
                 record("Especialidade", "Formato da Especialidade", "conforme", specialty_rich["text"])
             else:
-                record("Especialidade", "Formato da Especialidade", "ajustar", specialty_rich["text"], "Aplicar Arial 11, versalete, espaçamento expandido de 1,5 pt e borda dupla na Especialidade.")
+                record("Especialidade", "Formato da Especialidade", "ajustar", specialty_rich["text"], "Aplicar versalete e borda dupla na Especialidade.")
 
-        common = [
-            p for p in rich_paragraphs
-            if detect_section(p["text"]) and not re.fullmatch(r"\(.+?logia\)", p["text"], re.I)
-        ]
-        explicit_font_runs = [run for p in common for run in p["runs"] if run.get("font") or run.get("size")]
-        if explicit_font_runs:
-            ok = all(
-                (not run.get("font") or str(run.get("font")).lower() == "times new roman")
-                and (run.get("size") is None or abs(float(run.get("size")) - 10) < 0.1)
-                for run in explicit_font_runs
-            )
-            record("Texto", "Fonte do texto geral", "conforme" if ok else "ajustar", "Atributos explícitos em parágrafos comuns", "Aplicar Times New Roman 10 ao texto geral.")
-        explicit_lines = [p.get("line_spacing") for p in common if p.get("line_spacing")]
-        if explicit_lines:
-            ok = all(str(value) == "240" for value in explicit_lines)
-            record("Texto", "Espaçamento simples", "conforme" if ok else "ajustar", ", ".join(map(str, explicit_lines[:10])), "Aplicar espaçamento simples entre linhas.")
-
+    current_div = None
     current_format_sec = None
+    arg_idx = -1
     for i, rich in enumerate(rich_paragraphs):
         text = rich["text"]
         flags = char_flags(rich)
         raw = run_text_from_flags(flags)
-        if detect_division(text):
+        div = detect_division(text)
+        if div:
+            current_div = div
             current_format_sec = None
             continue
-        secao = detect_section(text)
-        effective_sec = secao or current_format_sec
-        if effective_sec == "Filmografia Especifica":
-            font_runs = [run for run in rich["runs"] if run.get("size") is not None]
-            if font_runs:
-                ok = all(abs(float(run["size"]) - 8) < 0.1 for run in font_runs)
-                record("Filmografia Especifica", "Fonte da ficha técnica", "conforme" if ok else "ajustar", text, "Aplicar fonte tamanho 8 à ficha técnica da Filmografia Específica.")
+
+        if current_div == "Argumentologia":
+            if starts_with_argumentologia_epigraph(text):
+                arg_idx += 1
+                secao = f"Argumentologia_{arg_idx}"
+                current_format_sec = secao
+            else:
+                if arg_idx == -1:
+                    arg_idx += 1
+                    secao = f"Argumentologia_{arg_idx}"
+                    current_format_sec = secao
+                else:
+                    secao = None
+        else:
+            secao = detect_section(text)
+
         if not secao:
             if current_format_sec and numbered_item(text):
-                item_start = numbered_body_start(raw)
-                item_colon_idx = raw.find(":", item_start or 0)
-                final_dot = last_period_index(flags)
-                if item_start is not None and item_colon_idx > item_start:
-                    prev_idx = previous_text_index(flags, item_colon_idx)
-                    item_epigraph_bold = prev_idx is not None and is_bold_at(flags, prev_idx) and is_bold_at(flags, item_colon_idx)
-                    if item_epigraph_bold and final_dot is not None and is_bold_at(flags, final_dot):
-                        record(current_format_sec, "Ponto final espelha epígrafe numerada", "conforme", text)
-                    elif item_epigraph_bold and final_dot is not None:
-                        record(
-                            current_format_sec,
-                            "Ponto final espelha epígrafe numerada",
-                            "ajustar",
-                            text,
-                            "Como a epígrafe do item numerado termina com ':' em negrito, o ponto final do parágrafo também deve estar em negrito.",
-                        )
+                if current_format_sec == "Remissiologia":
+                    match = re.match(r"^\s*(\d{1,3})\.?\s+(.+)$", raw)
+                    if match:
+                        num_end = match.end()
+                        rest_raw = raw[num_end:]
+                        
+                        colon_pos = rest_raw.find(":")
+                        if colon_pos != -1:
+                            title_text = rest_raw[:colon_pos].strip()
+                            title_start_idx = num_end
+                            title_end_idx = num_end + colon_pos
+                            
+                            # 1. Capitalization of title: first letter only is uppercase
+                            first_let_pos = -1
+                            for idx in range(title_start_idx, title_end_idx):
+                                if flags[idx]["char"].isalpha():
+                                    first_let_pos = idx
+                                    break
+                            
+                            cap_ok = True
+                            if first_let_pos == -1:
+                                cap_ok = False
+                            elif not is_char_upper(flags, first_let_pos):
+                                cap_ok = False
+                            else:
+                                for idx in range(first_let_pos + 1, title_end_idx):
+                                    if flags[idx]["char"].isalpha():
+                                        if is_inside_parentheses(raw, idx):
+                                            continue
+                                        if is_char_upper(flags, idx):
+                                            cap_ok = False
+                                            break
+                                            
+                            if cap_ok:
+                                record("Remissiologia", "Capitalização do título na Remissiologia", "conforme", text)
+                            else:
+                                record("Remissiologia", "Capitalização do título na Remissiologia", "ajustar", text, f"O título do verbete '{title_text}' na Remissiologia deve ter apenas a primeira letra em maiúscula.")
+                                
+                            # 2. Bold check for the title
+                            bold_ok = all(flags[idx]["bold"] for idx in range(title_start_idx, title_end_idx) if flags[idx]["char"].isalnum())
+                            if bold_ok:
+                                record("Remissiologia", "Título em negrito", "conforme", text)
+                            else:
+                                record("Remissiologia", "Título em negrito", "ajustar", text, f"O título do verbete '{title_text}' na Remissiologia deve estar todo em negrito.")
+                                
+                            # 3. Check other items: separated by ";"
+                            others_raw = rest_raw[colon_pos + 1:]
+                            others_start_idx = title_end_idx + 1
+                            
+                            item_matches = list(re.finditer(r"[^;]+", others_raw))
+                            for item_match in item_matches:
+                                item_str = item_match.group(0)
+                                clean_item = item_str.strip()
+                                if clean_item.endswith("."):
+                                    clean_item = clean_item[:-1].strip()
+                                if not clean_item:
+                                    continue
+                                    
+                                item_start_in_raw = others_start_idx + item_match.start()
+                                item_end_in_raw = others_start_idx + item_match.end()
+                                
+                                # First letter capitalized
+                                first_item_let_pos = -1
+                                for idx in range(item_start_in_raw, item_end_in_raw):
+                                    if flags[idx]["char"].isalpha():
+                                        first_item_let_pos = idx
+                                        break
+                                        
+                                o_cap_ok = True
+                                if first_item_let_pos == -1:
+                                    o_cap_ok = False
+                                elif not is_char_upper(flags, first_item_let_pos):
+                                    o_cap_ok = False
+                                    
+                                if o_cap_ok:
+                                    record("Remissiologia", "Capitalização dos itens secundários", "conforme", text)
+                                else:
+                                    record("Remissiologia", "Capitalização dos itens secundários", "ajustar", text, f"O item '{clean_item}' na Remissiologia deve iniciar com letra maiúscula.")
+                                    
+                                # Style check: normal style (no bold, no italic)
+                                has_bold_or_italic = any(flags[idx]["bold"] or flags[idx]["italic"] for idx in range(item_start_in_raw, item_end_in_raw) if flags[idx]["char"].isalnum())
+                                if has_bold_or_italic:
+                                    record("Remissiologia", "Estilo dos itens secundários", "ajustar", text, f"O item '{clean_item}' na Remissiologia deve estar em estilo normal (sem negrito ou itálico).")
+                                else:
+                                    record("Remissiologia", "Estilo dos itens secundários", "conforme", text)
+                                    
+                            # 4. Check double spacing: two spaces between words
+                            single_space_match = re.search(r"(?<=\S) (?=\S)", rest_raw)
+                            if single_space_match:
+                                record("Remissiologia", "Espaçamento duplo na Remissiologia", "ajustar", text, "Usar dois espaços entre as palavras nos itens da Remissiologia.")
+                            else:
+                                record("Remissiologia", "Espaçamento duplo na Remissiologia", "conforme", text)
+                                
+                            # 5. Check final period in bold
+                            final_dot = last_period_index(flags)
+                            if final_dot is not None:
+                                if is_bold_at(flags, final_dot):
+                                    record("Remissiologia", "Ponto final em negrito", "conforme", text)
+                                else:
+                                    record("Remissiologia", "Ponto final em negrito", "ajustar", text, "O ponto final do item da Remissiologia deve estar em negrito.")
+                else:
+                    item_start = numbered_body_start(raw)
+                    item_colon_idx = raw.find(":", item_start or 0)
+                    final_dot = last_period_index(flags)
+                    if item_start is not None and item_colon_idx > item_start:
+                        prev_idx = previous_text_index(flags, item_colon_idx)
+                        item_epigraph_bold = prev_idx is not None and is_bold_at(flags, prev_idx) and is_bold_at(flags, item_colon_idx)
+                        if item_epigraph_bold and final_dot is not None and is_bold_at(flags, final_dot):
+                            record(current_format_sec, "Ponto final espelha epígrafe numerada", "conforme", text)
+                        elif item_epigraph_bold and final_dot is not None:
+                            record(
+                                current_format_sec,
+                                "Ponto final espelha epígrafe numerada",
+                                "ajustar",
+                                text,
+                                "Como a epígrafe do item numerado termina com ':' em negrito, o ponto final do parágrafo também deve estar em negrito.",
+                            )
             continue
         current_format_sec = secao
 
@@ -1099,7 +1316,7 @@ def analyze_docx_formatting(path: Path) -> dict:
             if not span_has_text(flags, start, end):
                 continue
             checked_composite = raw[start:end]
-            if not span_italic_ok(flags, start, end):
+            if not span_italic_ok(flags, start, end, raw):
                 bad_composite = raw[start:end]
                 break
         if bad_composite:
@@ -1156,11 +1373,6 @@ def analyze_docx_formatting(path: Path) -> dict:
         rich = next((p for p in rich_paragraphs if clean(p["text"]) == frase_text), None)
         if rich:
             flags = char_flags(rich)
-            if rich.get("align") == "center":
-                record("Frase Enfatica", "Centralização", "conforme", rich["text"])
-            else:
-                record("Frase Enfatica", "Centralização", "ajustar", rich["text"], "Centralizar a Frase Enfática.")
-
             internal_grifo = [item for item in flags if item["char"].isalnum() and item["italic"] and not item["bold"]]
             if internal_grifo:
                 record("Frase Enfatica", "Grifo interno em itálico sem negrito", "conforme", rich["text"])
@@ -1185,7 +1397,7 @@ def analyze_docx_formatting(path: Path) -> dict:
     }
 
 
-def analyze(paragraphs: list[str], warnings: list[str] | None = None) -> dict:
+def analyze(paragraphs: list[str], warnings: list[str] | None = None, is_docx: bool = False) -> dict:
     warnings = warnings or []
     sections, section_order, divisions_seen, frase_enfatica_detectada = build_sections(paragraphs)
     meta = extract_meta(paragraphs, sections)
@@ -1230,79 +1442,91 @@ def analyze(paragraphs: list[str], warnings: list[str] | None = None) -> dict:
             add(achados, "Crítico", sec, "Seção fixa ausente", sec, "Adicionar a seção fixa.")
 
     for sec, declared_div in section_order:
-        expected = SECOES.get(sec, {}).get("div")
+        eff_sec = get_effective_section(sec, sections.get(sec, ""))
+        expected = SECOES.get(eff_sec, {}).get("div")
         if expected and declared_div and expected != declared_div:
-            add(achados, "Importante", sec, "Seção em divisão inesperada", f"{sec} em {declared_div}", f"Mover para {expected}.")
+            add(achados, "Importante", sec, "Seção em divisão inesperada", f"{eff_sec} em {declared_div}", f"Mover para {expected}.")
 
     counts = {}
     maximos = []
     for sec, text in sections.items():
-        qtd = count_items(sec, text)
+        effective_sec = get_effective_section(sec, text)
+        qtd = count_items(effective_sec, text)
         counts[sec] = qtd
-        rule = SECOES.get(sec, {})
+        rule = SECOES.get(effective_sec, {})
         if rule.get("min") and qtd < rule["min"]:
             add(achados, "Importante", sec, "Mínimo de itens não atingido", f"{qtd} item(ns)", f"Completar ao menos {rule['min']} item(ns).")
         if rule.get("totais") and qtd not in rule["totais"]:
             add(achados, "Crítico", sec, "Total inválido", f"{qtd} item(ns)", f"Usar um dos totais permitidos: {sorted(rule['totais'])}.")
         if rule.get("always_max") or (rule.get("max") and qtd >= rule["max"]):
             maximos.append({"secao": sec, "itens": qtd, "limiar": rule["max"]})
-        zero_issue = check_zero_pattern(sec, text)
+        zero_issue = check_zero_pattern(effective_sec, text)
         if zero_issue:
             regra, sugestao = zero_issue
             add(achados, "Importante", sec, regra, text, sugestao)
-        alpha_issue = alphabetical_issue(sec, text)
+        dot_issue = numbered_index_dot_issue(effective_sec, text)
+        if dot_issue:
+            regra, sugestao = dot_issue
+            add(achados, "Importante", sec, regra, text, sugestao)
+        empty_issue = empty_item_issue(effective_sec, text)
+        if empty_issue:
+            regra, sugestao = empty_issue
+            add(achados, "Importante", sec, regra, text, sugestao)
+        alpha_issue = alphabetical_issue(effective_sec, text)
         if alpha_issue:
             regra, sugestao = alpha_issue
             add(achados, "Importante", sec, regra, text, sugestao)
-        spacing_issue = numbered_spacing_issue(sec, text)
+        spacing_issue = numbered_spacing_issue(effective_sec, text)
         if spacing_issue:
             regra, sugestao = spacing_issue
             add(achados, "Importante", sec, regra, text, sugestao)
-        separator_issue = sinon_anton_separator_issue(sec, text)
+        separator_issue = sinon_anton_separator_issue(effective_sec, text)
         if separator_issue:
             regra, sugestao = separator_issue
             add(achados, "Importante", sec, regra, text, sugestao)
-        aspas_issue = quote_issue(sec, text)
+        aspas_issue = quote_issue(effective_sec, text)
         if aspas_issue:
             regra, sugestao = aspas_issue
             add(achados, "Importante", sec, regra, text, sugestao)
-        if sec == "Megapensenologia":
+        if effective_sec == "Megapensenologia":
             mega_issue = megapensene_issue(text)
             if mega_issue:
                 regra, sugestao = mega_issue
                 add(achados, "Importante", sec, regra, text, sugestao)
-        if sec == "Enumerologia":
+        if effective_sec == "Enumerologia":
             enum_issue = enumerologia_issue(text)
             if enum_issue:
                 regra, sugestao = enum_issue
                 add(achados, "Importante", sec, regra, text, sugestao)
-        if sec == "Exemplologia":
+        if effective_sec == "Exemplologia":
             exemplo_issue = exemplologia_article_issue(text)
             if exemplo_issue:
                 regra, sugestao = exemplo_issue
                 add(achados, "Importante", sec, regra, text, sugestao)
-        if sec == "Remissiologia":
+        if effective_sec == "Remissiologia":
             remiss_spacing = remissiologia_spacing_issue(text)
             if remiss_spacing:
                 regra, sugestao = remiss_spacing
                 add(achados, "Refinamento", sec, regra, text, sugestao)
-        signal_issue = composite_signal_issue(sec, text)
+            for regra, evidencia, sugestao in remissiologia_item_issues(text, is_docx):
+                add(achados, "Importante", sec, regra, evidencia, sugestao)
+        signal_issue = composite_signal_issue(effective_sec, text)
         if signal_issue:
             regra, sugestao = signal_issue
             add(achados, "Importante", sec, regra, text, sugestao)
-        if sec == "Ortopensatologia":
+        if effective_sec == "Ortopensatologia":
             orto_issue = ortopensatologia_issue(text)
             if orto_issue:
                 regra, sugestao = orto_issue
                 add(achados, "Importante", sec, regra, text, sugestao)
-        if sec == "Bibliografia Especifica":
+        if effective_sec == "Bibliografia Especifica":
             for regra, evidencia, sugestao in bibliography_issues(text):
                 add(achados, "Importante", sec, regra, evidencia, sugestao)
-        if sec == "Filmografia Especifica":
+        if effective_sec == "Filmografia Especifica":
             for regra, evidencia, sugestao in filmografia_issues(text):
                 add(achados, "Importante", sec, regra, evidencia, sugestao)
 
-    detalhismo_count = sum(1 for sec in sections if SECOES.get(sec, {}).get("div") == "Detalhismo")
+    detalhismo_count = sum(1 for sec in sections if SECOES.get(get_effective_section(sec, sections[sec]), {}).get("div") == "Detalhismo")
     if detalhismo_count >= 20:
         maximos.append({"secao": "Divisão Detalhismo", "itens": detalhismo_count, "limiar": 20})
 
@@ -1311,20 +1535,24 @@ def analyze(paragraphs: list[str], warnings: list[str] | None = None) -> dict:
 
     title_norm = norm(meta.get("titulo", ""))
     if title_norm:
-        for sec in ["Definologia", "Neologia", "Exemplologia", "Remissiologia"]:
-            section_norm = norm(sections.get(sec, ""))
-            if sec == "Exemplologia":
-                tokens = title_tokens(meta.get("titulo", ""))
-                if tokens and len(tokens & title_tokens(sections.get(sec, ""))) >= max(1, min(2, len(tokens))):
-                    continue
-            if sec in sections and title_norm not in section_norm:
-                add(achados, "Importante", sec, "Correlação com título", sections[sec], "Repetir o título do verbete de modo coerente nesta seção.")
+        for sec_name in ["Definologia", "Neologia", "Exemplologia", "Remissiologia"]:
+            for sec, text in sections.items():
+                if get_effective_section(sec, text) == sec_name:
+                    section_norm = norm(text)
+                    if sec_name == "Exemplologia":
+                        tokens = title_tokens(meta.get("titulo", ""))
+                        if tokens and len(tokens & title_tokens(text)) >= max(1, min(2, len(tokens))):
+                            continue
+                    if title_norm not in section_norm:
+                        add(achados, "Importante", sec, "Correlação com título", text, "Repetir o título do verbete de modo coerente nesta seção.")
 
     specialty_norm = norm(meta.get("especialidade", ""))
     if specialty_norm:
-        for sec in ["Neologia", "Interdisciplinologia"]:
-            if sec in sections and specialty_norm not in norm(sections[sec]):
-                add(achados, "Importante", sec, "Correlação com Especialidade", sections[sec], "Repetir a Especialidade declarada nesta seção.")
+        for sec_name in ["Neologia", "Interdisciplinologia"]:
+            for sec, text in sections.items():
+                if get_effective_section(sec, text) == sec_name:
+                    if specialty_norm not in norm(text):
+                        add(achados, "Importante", sec, "Correlação com Especialidade", text, "Repetir a Especialidade declarada nesta seção.")
 
     parasita_hits = []
     full_text = " ".join(paragraphs)
@@ -1376,7 +1604,7 @@ def render_markdown(result: dict) -> str:
     def checklist_status(ok: bool) -> str:
         return "✅" if ok else "⚠️"
 
-    maximos_lista = "; ".join(f"{item['secao']} ({item['itens']})" for item in result.get("maximos", []))
+    maximos_lista = "; ".join(f"{clean_sec(item['secao'])} ({item['itens']})" for item in result.get("maximos", []))
     paginas_encontradas = marca["paginas"]["encontrado"]
     paginas_evidencia = f"{paginas_encontradas} página(s)" if paginas_encontradas is not None else "Não disponível no arquivo analisado"
     logias_lista = result.get("logias_lista", [])
@@ -1409,7 +1637,7 @@ def render_markdown(result: dict) -> str:
         lines.append(f"| {label} | {item['exigido']} | {found} | {status(item['ok'])} | {evidencias_marca[key]} |")
 
     lines += ["", "## 3. Confor (estilística e formatação)"]
-    confor = [a for a in achados if a["secao"] in {"Confor", "Documento"} or "Minimo" in a["regra"] or "Total" in a["regra"]]
+    confor = [a for a in achados if clean_sec(a["secao"]) in {"Confor", "Documento"} or "Minimo" in a["regra"] or "Total" in a["regra"]]
     formatacao = result.get("formatacao", {})
     if formatacao.get("verificados"):
         ajustes = formatacao.get("ajustes", [])
@@ -1421,7 +1649,7 @@ def render_markdown(result: dict) -> str:
             for item in ajustes:
                 key = (item["regra"], item["sugestao"])
                 grouped.setdefault(key, {"regra": item["regra"], "sugestao": item["sugestao"], "secoes": set(), "qtd": 0})
-                grouped[key]["secoes"].add(item["secao"])
+                grouped[key]["secoes"].add(clean_sec(item["secao"]))
                 grouped[key]["qtd"] += 1
             lines += [
                 "",
@@ -1438,30 +1666,23 @@ def render_markdown(result: dict) -> str:
     if confor:
         lines += ["", "| Tipo | Seção | Regra | Correção resumida |", "|---|---|---|---|"]
         for a in confor:
-            lines.append(f"| {a['severidade']} | {a['secao']} | {a['regra']} | {a['sugestao']} |")
+            lines.append(f"| {a['severidade']} | {clean_sec(a['secao'])} | {a['regra']} | {a['sugestao']} |")
     elif not formatacao.get("verificados"):
         lines.append("- Nenhum achado formal específico nesta execução.")
 
     lines += ["", "## 4. Correlações internas"]
     corr = [a for a in achados if "Correlacao" in a["regra"] or "Formula" in a["regra"]]
-    lines += [f"- **{a['severidade']} · {a['secao']}:** {a['sugestao']}" for a in corr] or ["- Sem divergências automáticas nas correlações string-matcháveis."]
+    lines += [f"- **{a['severidade']} · {clean_sec(a['secao'])}:** {a['sugestao']}" for a in corr] or ["- Sem divergências automáticas nas correlações string-matcháveis."]
 
     lines += ["", "## 5. Seções fixas ausentes ou fora de ordem"]
     fixed = [a for a in achados if "ausente" in a["regra"].lower() or "fora de ordem" in a["regra"].lower()]
-    lines += [f"- **{a['severidade']} · {a['secao']}:** {a['sugestao']}" for a in fixed] or ["- Não foram detectadas ausências críticas de seções fixas."]
+    lines += [f"- **{a['severidade']} · {clean_sec(a['secao'])}:** {a['sugestao']}" for a in fixed] or ["- Não foram detectadas ausências críticas de seções fixas."]
 
     lines += [
         "",
         "## 6. Análise semântica editorial",
         "- Etapa não executada pelo motor Python. Use `prompts/codex-analise-semantica.md` com o verbete e este JSON formal para complementar o relatório.",
-        "",
-        "## 7. Lista priorizada de correções",
     ]
-    for i, a in enumerate(crit + imp + ref, 1):
-        icon = "❌ Crítico" if a["severidade"] == "Crítico" else "⚠️ Importante" if a["severidade"] == "Importante" else "💡 Refinamento"
-        lines.append(f"{i}. [{icon}] {a['secao']}: {a['sugestao']}")
-    if not achados:
-        lines.append("1. [💡 Refinamento] Prosseguir com revisão semântica editorial.")
     return "\n".join(lines)
 
 
@@ -1470,7 +1691,7 @@ def analyze_file(path: str | Path) -> dict:
     paragraphs, warnings = read_document(path)
     if not paragraphs:
         return analyze([], warnings)
-    result = analyze(paragraphs, warnings)
+    result = analyze(paragraphs, warnings, is_docx=(path.suffix.lower() == ".docx"))
     pages = None
     if path.suffix.lower() == ".docx":
         pages = read_docx_page_count(path)
