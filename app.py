@@ -131,6 +131,16 @@ st.markdown(
       border-color: var(--muted);
       color: var(--ink);
     }
+    .st-key-report_toggle_buttons .stButton > button[kind="primary"] {
+      border: 1px solid var(--violet);
+      background: var(--violet);
+      color: white;
+    }
+    .st-key-report_toggle_buttons .stButton > button[kind="primary"]:hover {
+      border-color: #5a3d66;
+      background: #5a3d66;
+      color: white;
+    }
     div[data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     code, pre { background: #f0ebe3 !important; border-radius: 6px; }
     div[data-testid="stMarkdownContainer"] table {
@@ -672,17 +682,18 @@ if uploaded:
             st.subheader("Resumo Integrado de Seções")
         with col_btn:
             st.write("<div style='height: 14px;'></div>", unsafe_allow_html=True)
-            b1, b2 = st.columns(2)
-            with b1:
-                is_active = not st.session_state["show_only_inconsistencies"]
-                if st.button("Completo", type="primary" if is_active else "secondary", key="btn_show_completo", use_container_width=True):
-                    st.session_state["show_only_inconsistencies"] = False
-                    st.rerun()
-            with b2:
-                is_active = st.session_state["show_only_inconsistencies"]
-                if st.button("Inconsistências", type="violet" if is_active else "secondary", key="btn_show_inconsistencies", use_container_width=True):
-                    st.session_state["show_only_inconsistencies"] = True
-                    st.rerun()
+            with st.container(key="report_toggle_buttons"):
+                b1, b2 = st.columns(2)
+                with b1:
+                    is_active = not st.session_state["show_only_inconsistencies"]
+                    if st.button("Completo", type="primary" if is_active else "secondary", key="btn_show_completo", use_container_width=True):
+                        st.session_state["show_only_inconsistencies"] = False
+                        st.rerun()
+                with b2:
+                    is_active = st.session_state["show_only_inconsistencies"]
+                    if st.button("Inconsistências", type="primary" if is_active else "secondary", key="btn_show_inconsistencies", use_container_width=True):
+                        st.session_state["show_only_inconsistencies"] = True
+                        st.rerun()
 
         secoes_texto = result.get("secoes_texto", {})
         contagens = result.get("contagens", {})
