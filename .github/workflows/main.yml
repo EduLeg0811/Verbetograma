@@ -2,7 +2,7 @@ name: Keep Streamlit Awake
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -11,4 +11,7 @@ jobs:
 
     steps:
       - name: Ping Streamlit app
-        run: curl -L --max-time 60 https://verbetograma.streamlit.app/
+        run: |
+          curl -I --max-time 60 --max-redirs 5 \
+          --user-agent "Mozilla/5.0" \
+          https://verbetograma.streamlit.app/ || true
