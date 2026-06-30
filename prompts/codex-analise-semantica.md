@@ -1,6 +1,6 @@
 # Prompt Codex — Análise Semântica do Verbete
 
-Use este prompt depois de rodar o motor Python pelo app Streamlit ou CLI. Entrada esperada:
+Use este prompt depois de rodar o motor Python pelo Verbetograma ou CLI. Entrada esperada:
 
 1. texto integral do verbete, preferencialmente extraído do `.docx`;
 2. JSON formal gerado por `scripts/analisar_verbete.py`;

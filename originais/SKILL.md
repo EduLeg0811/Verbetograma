@@ -20,12 +20,13 @@ Forma objetiva é Python; sentido é Codex/LLM. O modelo não deve recontar manu
 
 ## Fluxo recomendado
 
-### Passo 1 — Rodar o Verbetograma ou a CLI Python
+### Passo 1 — Rodar o app Streamlit ou CLI Python
 
 No modo local, use a superfície principal do projeto:
 
 ```powershell
-.\run-app.cmd
+pip install -r requirements.txt
+streamlit run app.py
 ```
 
 Envie o verbete pelo upload do app. O `.docx` é o formato mais confiável porque preserva runs de Word usados na auditoria de negrito/itálico/pontuação. `.pdf` funciona em modo melhor esforço. `.doc` depende de conversão local por LibreOffice ou Microsoft Word/COM.
@@ -61,7 +62,7 @@ O relatório final deve preservar os números e achados formais do Python e acre
 
 ### Passo 4 — Baixar saídas pelo app
 
-Volte ao Verbetograma para baixar:
+Volte ao app Streamlit para baixar:
 
 - relatório Word;
 - JSON formal;
