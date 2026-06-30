@@ -57,15 +57,15 @@ label {
   position: sticky;
   top: 0;
   z-index: 30;
-  border-bottom: 1px solid color-mix(in oklch, var(--border), transparent 45%);
-  background: color-mix(in oklch, var(--bg), transparent 20%);
+  border-bottom: 1px solid color-mix(in oklch, var(--border), transparent 50%);
+  background: color-mix(in oklch, var(--card), transparent 30%);
   backdrop-filter: blur(18px);
 }
 
 .header-inner {
   max-width: 1152px;
   margin: auto;
-  padding: 18px 24px;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,12 +87,23 @@ label {
 }
 
 .brand:hover .brand-mark {
-  transform: scale(1.08) rotate(-4deg);
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 8px color-mix(in oklch, var(--primary), transparent 60%));
+}
+
+.brand-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .brand-name {
-  font: 500 25px Lora, serif;
+  font: 500 30px Lora, serif;
   letter-spacing: -.025em;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand-name em {
@@ -100,13 +111,16 @@ label {
   font-style: italic;
 }
 
+.brand-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+
 .brand-category {
-  padding-left: 12px;
-  border-left: 1px solid var(--border);
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .2em;
+  font-size: 12px;
+  letter-spacing: .22em;
   text-transform: uppercase;
 }
 
@@ -116,16 +130,16 @@ label {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  background: color-mix(in oklch, var(--card), transparent 35%);
+  color: color-mix(in oklch, var(--fg), transparent 40%);
+  border: 1px solid color-mix(in oklch, var(--border), transparent 40%);
+  background: color-mix(in oklch, var(--card), transparent 40%);
   cursor: pointer;
   transition: .25s;
 }
 
 .icon-button:hover {
   color: var(--primary);
-  border-color: color-mix(in oklch, var(--primary), transparent 50%);
+  border-color: color-mix(in oklch, var(--primary), transparent 60%);
 }
 
 .icon-button svg {
@@ -176,18 +190,20 @@ label {
 
 .hero h1 {
   margin: 23px 0 18px;
-  font: 500 clamp(43px, 6vw, 72px)/1.04 Lora, serif;
-  letter-spacing: -.045em;
+  font: 400 clamp(48px, 5vw, 60px)/1.05 Lora, serif;
+  color: var(--fg);
 }
 
 .hero h1 em {
-  color: color-mix(in oklch, var(--primary), var(--fg) 10%);
+  color: color-mix(in oklch, var(--primary), transparent 20%);
 }
 
 .hero p {
+  max-width: 672px;
+  margin: 20px auto 0;
   color: var(--muted);
-  font-size: 15px;
-  letter-spacing: .035em;
+  font-size: 16px;
+  line-height: 1.625;
 }
 
 .workbench {
@@ -912,6 +928,7 @@ label {
   }
 
   .brand-category,
+  .brand-sep,
   .index {
     display: none;
   }
@@ -964,6 +981,7 @@ label {
   }
 
   .brand-name {
+    max-width: 14rem;
     font-size: 22px;
   }
 

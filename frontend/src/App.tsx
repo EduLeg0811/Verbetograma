@@ -48,7 +48,14 @@ function ThemeButton() {
 
 function Header() {
   return <header className="topbar"><div className="header-inner">
-    <a className="brand" href="/"><img className="brand-mark" src={favicon} alt="" /><span className="brand-name">Verbeto<em>grama</em></span><span className="brand-category">Análise técnica</span></a>
+    <a className="brand" href="/" title="Voltar à página inicial">
+      <img className="brand-mark" src={favicon} alt="" />
+      <span className="brand-text">
+        <span className="brand-name">Verbeto<em>grama</em></span>
+        <span className="brand-sep" />
+        <span className="brand-category">Análise técnica</span>
+      </span>
+    </a>
     <ThemeButton />
   </div></header>;
 }
