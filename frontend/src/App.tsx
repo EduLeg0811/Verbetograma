@@ -48,7 +48,7 @@ function ThemeButton() {
 
 function Header() {
   return <header className="topbar"><div className="header-inner">
-    <a className="brand" href="/" title="Voltar à página inicial">
+    <a className="brand" href="https://cons-ia-f8wf.onrender.com/gallery.html" title="Cons-IA — galeria de apps">
       <img className="brand-mark" src={favicon} alt="" />
       <span className="brand-text">
         <span className="brand-name">Verbeto<em>grama</em></span>
@@ -156,6 +156,6 @@ export default function App() {
   return <><Header />{payload ? <Results payload={payload} reset={() => setPayload(null)} /> : <main className="landing">
     <section className="hero"><span className="hero-kicker"><Sparkles /></span><h1>Auditoria<br /><em>Verbetográfica.</em></h1><p>Estrutura • Confor • Máximos • Logias • Relatório técnico</p></section>
     <section className="workbench"><Upload busy={busy} onFile={analyze} />{error && <div className="error"><X />{error}</div>}</section>
-    <footer><span><FileText /> @2026 ● Cons-IA</span></footer>
+    <footer><span><FileText /> Verbetograma ● @2026</span></footer>
   </main>}</>;
 }
